@@ -1,0 +1,2023 @@
+openapi: 3.0.3
+info:
+  title: Greylight
+  version: 0.1.0
+  description: >-
+    Life-cycle ethics review workflow for AI product teams. Greylight gates each stage
+    of the AI life cycle, evaluates the four settled breach domains as bright lines that
+    block progression, routes genuine grey areas to a quorate deliberation forum that
+    returns a position with reasoning, dissent and the context it was decided under, and
+    keeps a consequence feedback loop live after launch so a deployment gate can reopen.
+  x-product-slug: ai-ethics-greylight
+  x-source: ai-in-ethics/deloitte-ai-ethics/
+servers:
+  - url: https://api.example.com
+tags:
+  - name: Initiatives
+    description: AI initiatives under review and their current stage
+  - name: Stage Gates
+    description: Stage submissions and recorded verdicts
+  - name: Breach Checks
+    description: Bright-line checks on privacy, transparency, security and consent
+  - name: Build Determination
+    description: Whether the use case should be enhanced by AI at all
+  - name: Dilemmas
+    description: Grey-area questions on the docket
+  - name: Deliberation
+    description: Forum sessions, positions and recorded dissent
+  - name: Precedents
+    description: Reusable positions scoped to the context they were decided under
+  - name: Reviews
+    description: Inference-risk and dataset marginalisation reviews
+  - name: Workforce
+    description: Pre-deployment consultation where employee work changes
+  - name: Consequence Monitoring
+    description: Post-launch feedback loops, signals and gate reopening
+  - name: Taxonomy
+    description: Concern vocabulary and forum quorum rules
+  - name: Reporting
+    description: Threat exposure and cycle-time reporting
+paths:
+  /v1/initiatives:
+    get:
+      operationId: listInitiatives
+      tags: [Initiatives]
+      summary: List AI initiatives under review
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: currentStage
+          in: query
+          schema:
+            $ref: "#/components/schemas/LifecycleStage"
+        - name: gateState
+          in: query
+          schema:
+            $ref: "#/components/schemas/GateState"
+      responses:
+        "200":
+          description: Initiatives page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeAiInitiative"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: registerInitiative
+      tags: [Initiatives]
+      summary: Register an AI initiative for life-cycle review
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiInitiativeCreate"
+      responses:
+        "201":
+          description: Initiative registered at use case definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeAiInitiative"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /v1/initiatives/{initiativeId}:
+    parameters:
+      - $ref: "#/components/parameters/InitiativeId"
+    get:
+      operationId: getInitiative
+      tags: [Initiatives]
+      summary: Get an initiative with gate state and open concerns
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Initiative
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeAiInitiative"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/initiatives/{initiativeId}/gate-submissions:
+    parameters:
+      - $ref: "#/components/parameters/InitiativeId"
+    get:
+      operationId: listGateSubmissions
+      tags: [Stage Gates]
+      summary: List gate submissions and verdicts for an initiative
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Gate submissions page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeGateSubmission"
+    post:
+      operationId: submitStageGate
+      tags: [Stage Gates]
+      summary: Submit an initiative to a life-cycle stage gate
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GateSubmissionCreate"
+      responses:
+        "201":
+          description: Submission accepted, breach checks queued and concerns classified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeGateSubmission"
+        "409":
+          description: Previous stage has no recorded verdict, progression order violated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/gate-submissions/{submissionId}/verdict:
+    parameters:
+      - $ref: "#/components/parameters/SubmissionId"
+    post:
+      operationId: issueGateVerdict
+      tags: [Stage Gates]
+      summary: Issue the stage verdict
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GateVerdictCreate"
+      responses:
+        "201":
+          description: Verdict recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeGateVerdict"
+        "409":
+          description: Failed breach check outstanding, verdict cannot be proceed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/breach-checks:
+    get:
+      operationId: listBreachChecks
+      tags: [Breach Checks]
+      summary: List the configured bright-line checks by domain
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: domain
+          in: query
+          schema:
+            $ref: "#/components/schemas/BreachDomain"
+      responses:
+        "200":
+          description: Breach checks page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeBreachCheck"
+  /v1/gate-submissions/{submissionId}/breach-checks:
+    parameters:
+      - $ref: "#/components/parameters/SubmissionId"
+    get:
+      operationId: listBreachCheckResults
+      tags: [Breach Checks]
+      summary: List bright-line check results for a submission
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Breach check results page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeBreachCheckResult"
+    post:
+      operationId: recordBreachCheckResult
+      tags: [Breach Checks]
+      summary: Record the outcome of a bright-line check
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BreachCheckResultCreate"
+      responses:
+        "201":
+          description: Check result recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeBreachCheckResult"
+  /v1/breach-check-results/{resultId}/challenge:
+    parameters:
+      - $ref: "#/components/parameters/ResultId"
+    post:
+      operationId: challengeBreachCheck
+      tags: [Breach Checks]
+      summary: Challenge a check the team believes is misapplied
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grounds, raisedBy]
+              properties:
+                grounds:
+                  type: string
+                  enum: [check_not_applicable, evidence_misread, scope_incorrect, superseded_obligation]
+                argument:
+                  type: string
+                raisedBy:
+                  type: string
+      responses:
+        "201":
+          description: Challenge raised and routed for adjudication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeBreachCheckResult"
+  /v1/breach-acceptances:
+    get:
+      operationId: listBreachAcceptances
+      tags: [Breach Checks]
+      summary: List time-boxed breach acceptances and their expiry
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Breach acceptances page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeBreachAcceptance"
+    post:
+      operationId: acceptBreachTemporarily
+      tags: [Breach Checks]
+      summary: Accept a failed bright-line check for a bounded period
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BreachAcceptanceCreate"
+      responses:
+        "201":
+          description: Acceptance signed by a named executive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeBreachAcceptance"
+        "403":
+          description: Signer lacks authority to accept this breach domain
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/initiatives/{initiativeId}/build-determination:
+    parameters:
+      - $ref: "#/components/parameters/InitiativeId"
+    put:
+      operationId: recordBuildDetermination
+      tags: [Build Determination]
+      summary: Record whether the use case should be enhanced by AI at all
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuildDetermination"
+      responses:
+        "200":
+          description: Determination recorded as a durable organisational position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeBuildDetermination"
+  /v1/dilemmas:
+    get:
+      operationId: listDilemmas
+      tags: [Dilemmas]
+      summary: List the dilemma docket ordered by launch date and severity
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [docketed, scheduled, deliberated, resolved, commitment_breached, withdrawn]
+        - name: commitmentBreached
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Dilemma docket page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeDilemma"
+    post:
+      operationId: raiseDilemma
+      tags: [Dilemmas]
+      summary: Raise a grey-area question onto the docket
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DilemmaCreate"
+      responses:
+        "201":
+          description: Dilemma docketed with service commitment and precedent suggestions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeDilemma"
+  /v1/dilemmas/{dilemmaId}/owner:
+    parameters:
+      - $ref: "#/components/parameters/DilemmaId"
+    put:
+      operationId: assignConcernOwner
+      tags: [Dilemmas]
+      summary: Assign the single named accountable owner
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountableOwner"
+      responses:
+        "200":
+          description: Owner assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeDilemma"
+  /v1/deliberation-sessions:
+    post:
+      operationId: openDeliberationSession
+      tags: [Deliberation]
+      summary: Open a quorate deliberation session
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeliberationSessionCreate"
+      responses:
+        "201":
+          description: Session opened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeDeliberationSession"
+        "422":
+          description: Quorum rules not satisfied by the attending membership
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/deliberation-sessions/{sessionId}/position:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      operationId: recordForumPosition
+      tags: [Deliberation]
+      summary: Record the forum's position, reasoning, conditions and context
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForumPositionCreate"
+      responses:
+        "201":
+          description: Position recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeForumPosition"
+  /v1/deliberation-sessions/{sessionId}/dissent:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      operationId: recordDissent
+      tags: [Deliberation]
+      summary: Record a member's dissent from the position
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DissentRecord"
+      responses:
+        "201":
+          description: Dissent recorded against the position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeDissentRecord"
+  /v1/precedents:
+    get:
+      operationId: searchPrecedents
+      tags: [Precedents]
+      summary: Search resolved positions applicable to a context
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: concernType
+          in: query
+          schema:
+            type: string
+        - name: jurisdiction
+          in: query
+          schema:
+            type: string
+            example: CA
+        - name: customerSegment
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Precedents page with in-scope and out-of-scope flags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopePrecedent"
+  /v1/precedents/{precedentId}/apply:
+    parameters:
+      - $ref: "#/components/parameters/PrecedentId"
+    post:
+      operationId: applyPrecedent
+      tags: [Precedents]
+      summary: Close a dilemma by inheriting an in-scope precedent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [dilemmaId, appliedBy]
+              properties:
+                dilemmaId:
+                  type: string
+                appliedBy:
+                  type: string
+                contextScope:
+                  $ref: "#/components/schemas/ContextScope"
+      responses:
+        "200":
+          description: Precedent applied and dilemma resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeDilemma"
+        "409":
+          description: Precedent is out of scope for the requested context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/initiatives/{initiativeId}/inference-risk-review:
+    parameters:
+      - $ref: "#/components/parameters/InitiativeId"
+    post:
+      operationId: recordInferenceRiskReview
+      tags: [Reviews]
+      summary: Record what private or unintended attributes predictions could reveal
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InferenceRiskReview"
+      responses:
+        "201":
+          description: Review recorded under restricted access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeInferenceRiskReview"
+  /v1/initiatives/{initiativeId}/marginalisation-review:
+    parameters:
+      - $ref: "#/components/parameters/InitiativeId"
+    post:
+      operationId: recordMarginalisationReview
+      tags: [Reviews]
+      summary: Record whether collected data marginalises particular demographics
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarginalisationReview"
+      responses:
+        "201":
+          description: Review recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeMarginalisationReview"
+  /v1/initiatives/{initiativeId}/workforce-consultation:
+    parameters:
+      - $ref: "#/components/parameters/InitiativeId"
+    post:
+      operationId: completeWorkforceConsultation
+      tags: [Workforce]
+      summary: Record pre-deployment consultation on increased automation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkforceConsultationCreate"
+      responses:
+        "201":
+          description: Consultation recorded with aggregated responses
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeWorkforceConsultation"
+  /v1/consequence-loops:
+    get:
+      operationId: listConsequenceLoops
+      tags: [Consequence Monitoring]
+      summary: List post-launch feedback loops and their staleness
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: staleOnly
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Consequence loops page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeConsequenceLoop"
+    post:
+      operationId: createConsequenceLoop
+      tags: [Consequence Monitoring]
+      summary: Establish a feedback loop with named owner and reopening signals
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsequenceLoopCreate"
+      responses:
+        "201":
+          description: Loop established
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeConsequenceLoop"
+  /v1/consequence-loops/{loopId}/signals:
+    parameters:
+      - $ref: "#/components/parameters/LoopId"
+    post:
+      operationId: recordConsequenceSignal
+      tags: [Consequence Monitoring]
+      summary: Record an unintended-consequence signal
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsequenceSignalCreate"
+      responses:
+        "201":
+          description: Signal recorded, gate reopened if the threshold is met
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeConsequenceSignal"
+  /v1/consequence-loops/{loopId}/reopen-gate:
+    parameters:
+      - $ref: "#/components/parameters/LoopId"
+    post:
+      operationId: reopenDeploymentGate
+      tags: [Consequence Monitoring]
+      summary: Return a live feature to the deployment gate
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason, requestedBy]
+              properties:
+                reason:
+                  type: string
+                triggeringSignalIds:
+                  type: array
+                  items:
+                    type: string
+                requestedBy:
+                  type: string
+      responses:
+        "202":
+          description: Deployment gate reopened
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeGateSubmission"
+  /v1/taxonomy/concern-types:
+    get:
+      operationId: listConcernTypes
+      tags: [Taxonomy]
+      summary: List the maintained concern vocabulary
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Concern taxonomy page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeConcernTaxonomyTerm"
+    post:
+      operationId: createConcernType
+      tags: [Taxonomy]
+      summary: Add a versioned concern type to the vocabulary
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConcernTaxonomyTerm"
+      responses:
+        "201":
+          description: Concern type created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeConcernTaxonomyTerm"
+  /v1/reports/threat-exposure:
+    get:
+      operationId: getThreatExposureReport
+      tags: [Reporting]
+      summary: Report exposure across the three named organisational threats
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            example: 2026-09
+      responses:
+        "200":
+          description: Threat exposure with owners and remediation positions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeThreatExposureReport"
+  /v1/reports/verdict-cycle-time:
+    get:
+      operationId: getVerdictCycleTimeReport
+      tags: [Reporting]
+      summary: Report verdict cycle time against the published commitment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: stage
+          in: query
+          schema:
+            $ref: "#/components/schemas/LifecycleStage"
+      responses:
+        "200":
+          description: Cycle time by stage with commitment breaches
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeVerdictCycleTimeReport"
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    InitiativeId:
+      name: initiativeId
+      in: path
+      required: true
+      schema:
+        type: string
+    SubmissionId:
+      name: submissionId
+      in: path
+      required: true
+      schema:
+        type: string
+    ResultId:
+      name: resultId
+      in: path
+      required: true
+      schema:
+        type: string
+    DilemmaId:
+      name: dilemmaId
+      in: path
+      required: true
+      schema:
+        type: string
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+    PrecedentId:
+      name: precedentId
+      in: path
+      required: true
+      schema:
+        type: string
+    LoopId:
+      name: loopId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    UnprocessableEntity:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    ResponseMeta:
+      type: object
+      required: [requestId, timestamp]
+      properties:
+        requestId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+    LifecycleStage:
+      type: string
+      description: Stage of the AI life cycle at which ethics is assessed
+      enum:
+        - use_case_definition
+        - data_acquisition_and_preparation
+        - modelling_and_training
+        - validation
+        - deployment_and_monitoring
+    BreachDomain:
+      type: string
+      description: Settled domains where ethical expectations are treated as obligatory
+      enum: [privacy, transparency, security, consent]
+    GateState:
+      type: string
+      enum: [not_submitted, in_check, in_deliberation, proceed, proceed_with_conditions, barred, reopened]
+    ThreatCategory:
+      type: string
+      enum: [regulatory_conflict, public_backlash, operational_inefficiency]
+    ContextScope:
+      type: object
+      description: The context an ethical position was decided under
+      required: [jurisdictions]
+      properties:
+        jurisdictions:
+          type: array
+          items:
+            type: string
+            example: CA
+        markets:
+          type: array
+          items:
+            type: string
+        customerSegments:
+          type: array
+          items:
+            type: string
+        socialNormsNoted:
+          type: string
+        organisationalValuesInvoked:
+          type: array
+          items:
+            type: string
+    AccountableOwner:
+      type: object
+      required: [personId, role]
+      properties:
+        personId:
+          type: string
+        role:
+          type: string
+          example: ai_risk_leader
+        assignedAt:
+          type: string
+          format: date-time
+        assignedBy:
+          type: string
+    AiInitiative:
+      type: object
+      required: [id, name, currentStage, gateState, featureOwner]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        featureOwner:
+          type: string
+        deliveryTeam:
+          type: string
+        currentStage:
+          $ref: "#/components/schemas/LifecycleStage"
+        gateState:
+          $ref: "#/components/schemas/GateState"
+        targetLaunchDate:
+          type: string
+          format: date
+        changesEmployeeWork:
+          type: boolean
+        trackerReference:
+          type: string
+        openConcernCount:
+          type: integer
+        concernsWithoutOwner:
+          type: integer
+        contextScope:
+          $ref: "#/components/schemas/ContextScope"
+    AiInitiativeCreate:
+      type: object
+      required: [name, featureOwner]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        featureOwner:
+          type: string
+        deliveryTeam:
+          type: string
+        targetLaunchDate:
+          type: string
+          format: date
+        changesEmployeeWork:
+          type: boolean
+        trackerReference:
+          type: string
+        contextScope:
+          $ref: "#/components/schemas/ContextScope"
+    GateSubmissionCreate:
+      type: object
+      required: [stage, submittedBy]
+      properties:
+        stage:
+          $ref: "#/components/schemas/LifecycleStage"
+        anticipatedHarms:
+          type: array
+          items:
+            type: object
+            properties:
+              harm:
+                type: string
+              affectedGroup:
+                type: string
+              likelihood:
+                type: string
+                enum: [remote, possible, likely, near_certain]
+        stageAnswers:
+          type: object
+          description: Answers to the stage-specific question set
+          additionalProperties:
+            type: string
+        submittedBy:
+          type: string
+        reopened:
+          type: boolean
+    GateSubmission:
+      type: object
+      required: [id, initiativeId, stage, status, submittedAt]
+      properties:
+        id:
+          type: string
+        initiativeId:
+          type: string
+        stage:
+          $ref: "#/components/schemas/LifecycleStage"
+        status:
+          type: string
+          enum: [open, in_check, in_deliberation, decided, withdrawn]
+        anticipatedHarms:
+          type: array
+          items:
+            type: object
+            properties:
+              harm:
+                type: string
+              affectedGroup:
+                type: string
+              likelihood:
+                type: string
+        raisedConcernIds:
+          type: array
+          items:
+            type: string
+        reopened:
+          type: boolean
+        reopenReason:
+          type: string
+        submittedBy:
+          type: string
+        submittedAt:
+          type: string
+          format: date-time
+        commitmentDueAt:
+          type: string
+          format: date-time
+    GateVerdictCreate:
+      type: object
+      required: [outcome, decidedBy]
+      properties:
+        outcome:
+          type: string
+          enum: [proceed, proceed_with_conditions, deliberate, barred]
+        conditions:
+          type: array
+          items:
+            type: string
+        rationale:
+          type: string
+        decidedBy:
+          type: string
+    GateVerdict:
+      type: object
+      required: [id, submissionId, outcome, decidedBy, decidedAt]
+      properties:
+        id:
+          type: string
+        submissionId:
+          type: string
+        outcome:
+          type: string
+          enum: [proceed, proceed_with_conditions, deliberate, barred]
+        conditions:
+          type: array
+          items:
+            type: string
+        rationale:
+          type: string
+        taxonomyVersion:
+          type: string
+          description: Vocabulary version in force when the verdict was reached
+        quorumRulesVersion:
+          type: string
+        decidedBy:
+          type: string
+        decidedAt:
+          type: string
+          format: date-time
+        supersededByVerdictId:
+          type: string
+    BreachCheck:
+      type: object
+      required: [id, domain, name, blocking]
+      properties:
+        id:
+          type: string
+        domain:
+          $ref: "#/components/schemas/BreachDomain"
+        name:
+          type: string
+          example: full_data_lifecycle_privacy_risk_analysis_present
+        blocking:
+          type: boolean
+        obligationReference:
+          type: string
+        evidenceSourceSystem:
+          type: string
+    BreachCheckResultCreate:
+      type: object
+      required: [breachCheckId, outcome]
+      properties:
+        breachCheckId:
+          type: string
+        outcome:
+          type: string
+          enum: [pass, fail, not_applicable, evidence_missing]
+        evidenceReference:
+          type: string
+        assessedBy:
+          type: string
+    BreachCheckResult:
+      type: object
+      required: [id, submissionId, breachCheckId, domain, outcome]
+      properties:
+        id:
+          type: string
+        submissionId:
+          type: string
+        breachCheckId:
+          type: string
+        domain:
+          $ref: "#/components/schemas/BreachDomain"
+        outcome:
+          type: string
+          enum: [pass, fail, not_applicable, evidence_missing]
+        blocking:
+          type: boolean
+        evidenceReference:
+          type: string
+        challengeStatus:
+          type: string
+          enum: [none, raised, upheld, rejected]
+        remediationOwner:
+          type: string
+        acceptanceId:
+          type: string
+    BreachAcceptanceCreate:
+      type: object
+      required: [breachCheckResultId, justification, acceptedBy, expiresAt]
+      properties:
+        breachCheckResultId:
+          type: string
+        justification:
+          type: string
+        compensatingControls:
+          type: array
+          items:
+            type: string
+        acceptedBy:
+          type: string
+          description: Named executive with authority for this breach domain
+        expiresAt:
+          type: string
+          format: date
+    BreachAcceptance:
+      type: object
+      required: [id, breachCheckResultId, domain, acceptedBy, expiresAt, status]
+      properties:
+        id:
+          type: string
+        breachCheckResultId:
+          type: string
+        domain:
+          $ref: "#/components/schemas/BreachDomain"
+        justification:
+          type: string
+        compensatingControls:
+          type: array
+          items:
+            type: string
+        acceptedBy:
+          type: string
+        expiresAt:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [live, expired, withdrawn, remediated]
+    BuildDetermination:
+      type: object
+      required: [determination, reasoning, decidedBy]
+      properties:
+        determination:
+          type: string
+          enum: [build_with_ai, build_without_ai, do_not_build, defer]
+        reasoning:
+          type: string
+        alternativesConsidered:
+          type: array
+          items:
+            type: string
+        intendedUseJustifiesRisk:
+          type: boolean
+        decidedBy:
+          type: string
+        decidedAt:
+          type: string
+          format: date-time
+        reviewDate:
+          type: string
+          format: date
+    DilemmaCreate:
+      type: object
+      required: [initiativeId, concernTypeId, question]
+      properties:
+        initiativeId:
+          type: string
+        submissionId:
+          type: string
+        concernTypeId:
+          type: string
+        question:
+          type: string
+        severity:
+          type: string
+          enum: [low, moderate, high, critical]
+        valuesInTension:
+          type: array
+          items:
+            type: string
+            example: fairness_versus_commercial_viability
+        raisedBy:
+          type: string
+        contextScope:
+          $ref: "#/components/schemas/ContextScope"
+    Dilemma:
+      type: object
+      required: [id, initiativeId, concernTypeId, question, status]
+      properties:
+        id:
+          type: string
+        initiativeId:
+          type: string
+        submissionId:
+          type: string
+        concernTypeId:
+          type: string
+        question:
+          type: string
+        severity:
+          type: string
+          enum: [low, moderate, high, critical]
+        status:
+          type: string
+          enum: [docketed, scheduled, deliberated, resolved, commitment_breached, withdrawn]
+        owner:
+          $ref: "#/components/schemas/AccountableOwner"
+        commitmentDueAt:
+          type: string
+          format: date-time
+        suggestedPrecedentIds:
+          type: array
+          items:
+            type: string
+        resolvedByPositionId:
+          type: string
+        resolvedByPrecedentId:
+          type: string
+        contextScope:
+          $ref: "#/components/schemas/ContextScope"
+        ageDays:
+          type: integer
+    DeliberationSessionCreate:
+      type: object
+      required: [dilemmaIds, attendees, chair]
+      properties:
+        dilemmaIds:
+          type: array
+          items:
+            type: string
+        attendees:
+          type: array
+          items:
+            type: object
+            required: [personId, capacity]
+            properties:
+              personId:
+                type: string
+              capacity:
+                type: string
+                enum: [legal, privacy, security, domain_expert, employee_representative, product, risk]
+        chair:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+    DeliberationSession:
+      type: object
+      required: [id, dilemmaIds, status, quorumSatisfied]
+      properties:
+        id:
+          type: string
+        dilemmaIds:
+          type: array
+          items:
+            type: string
+        chair:
+          type: string
+        attendees:
+          type: array
+          items:
+            type: object
+            properties:
+              personId:
+                type: string
+              capacity:
+                type: string
+        quorumSatisfied:
+          type: boolean
+        quorumRulesVersion:
+          type: string
+        status:
+          type: string
+          enum: [scheduled, open, closed, abandoned]
+        minutesAccessScope:
+          type: string
+          enum: [forum_only, risk_function, initiative_team, internal_audit]
+        heldAt:
+          type: string
+          format: date-time
+    ForumPositionCreate:
+      type: object
+      required: [dilemmaId, position, reasoning, contextScope]
+      properties:
+        dilemmaId:
+          type: string
+        position:
+          type: string
+          enum: [permitted, permitted_with_conditions, not_permitted, unresolved_referred_up]
+        reasoning:
+          type: string
+        conditions:
+          type: array
+          items:
+            type: string
+        contextScope:
+          $ref: "#/components/schemas/ContextScope"
+        reviewDate:
+          type: string
+          format: date
+        publishAsPrecedent:
+          type: boolean
+    ForumPosition:
+      type: object
+      required: [id, dilemmaId, sessionId, position, contextScope, recordedAt]
+      properties:
+        id:
+          type: string
+        dilemmaId:
+          type: string
+        sessionId:
+          type: string
+        position:
+          type: string
+          enum: [permitted, permitted_with_conditions, not_permitted, unresolved_referred_up]
+        reasoning:
+          type: string
+        conditions:
+          type: array
+          items:
+            type: string
+        contextScope:
+          $ref: "#/components/schemas/ContextScope"
+        dissentCount:
+          type: integer
+        precedentId:
+          type: string
+        supersedesPositionId:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+    DissentRecord:
+      type: object
+      required: [positionId, memberId, groundsOfDissent]
+      properties:
+        positionId:
+          type: string
+        memberId:
+          type: string
+        capacity:
+          type: string
+        groundsOfDissent:
+          type: string
+        wouldRevisitIf:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
+    Precedent:
+      type: object
+      required: [id, positionId, concernTypeId, contextScope, status]
+      properties:
+        id:
+          type: string
+        positionId:
+          type: string
+        concernTypeId:
+          type: string
+        summary:
+          type: string
+        contextScope:
+          $ref: "#/components/schemas/ContextScope"
+        status:
+          type: string
+          enum: [active, review_due, superseded, withdrawn]
+        reviewDate:
+          type: string
+          format: date
+        timesApplied:
+          type: integer
+        inScopeForQuery:
+          type: boolean
+    InferenceRiskReview:
+      type: object
+      required: [inferableAttributes, reviewedBy]
+      properties:
+        inferableAttributes:
+          type: array
+          items:
+            type: object
+            required: [attribute, confidence]
+            properties:
+              attribute:
+                type: string
+                example: pregnancy_status
+              confidence:
+                type: string
+                enum: [speculative, plausible, demonstrated]
+              mitigation:
+                type: string
+        unintendedUseRisks:
+          type: array
+          items:
+            type: string
+        accessRestriction:
+          type: string
+          enum: [restricted, forum_only]
+        reviewedBy:
+          type: string
+        reviewedAt:
+          type: string
+          format: date-time
+    MarginalisationReview:
+      type: object
+      required: [datasetReference, findings, reviewedBy]
+      properties:
+        datasetReference:
+          type: string
+        collectionMethod:
+          type: string
+        findings:
+          type: array
+          items:
+            type: object
+            required: [demographic, representation]
+            properties:
+              demographic:
+                type: string
+              representation:
+                type: string
+                enum: [proportionate, under_represented, absent, unmeasurable]
+              consequenceForOutcomes:
+                type: string
+        remediation:
+          type: string
+        reviewedBy:
+          type: string
+        reviewedAt:
+          type: string
+          format: date-time
+    WorkforceConsultationCreate:
+      type: object
+      required: [rolesAffected, method, respondentCount]
+      properties:
+        rolesAffected:
+          type: array
+          items:
+            type: string
+        method:
+          type: string
+          enum: [survey, focus_group, works_council, union_consultation, town_hall]
+        respondentCount:
+          type: integer
+        anticipatedResponseThemes:
+          type: array
+          items:
+            type: object
+            properties:
+              theme:
+                type: string
+                example: fear_of_role_obsolescence
+              prevalence:
+                type: string
+                enum: [isolated, common, dominant]
+        mitigationsAgreed:
+          type: array
+          items:
+            type: string
+        employeeRepresentative:
+          type: string
+    WorkforceConsultation:
+      type: object
+      required: [id, initiativeId, method, completedAt]
+      properties:
+        id:
+          type: string
+        initiativeId:
+          type: string
+        rolesAffected:
+          type: array
+          items:
+            type: string
+        method:
+          type: string
+        respondentCount:
+          type: integer
+        anticipatedResponseThemes:
+          type: array
+          items:
+            type: object
+            properties:
+              theme:
+                type: string
+              prevalence:
+                type: string
+        mitigationsAgreed:
+          type: array
+          items:
+            type: string
+        individualResponsesRetained:
+          type: boolean
+        completedAt:
+          type: string
+          format: date-time
+    ConsequenceLoopCreate:
+      type: object
+      required: [initiativeId, owner, cadence, reopeningSignals]
+      properties:
+        initiativeId:
+          type: string
+        owner:
+          $ref: "#/components/schemas/AccountableOwner"
+        cadence:
+          type: string
+          enum: [weekly, monthly, quarterly]
+        reopeningSignals:
+          type: array
+          items:
+            type: object
+            required: [signalType, threshold]
+            properties:
+              signalType:
+                type: string
+                enum: [complaint_theme, outcome_disparity, media_coverage, regulator_query, employee_escalation, model_degradation]
+              threshold:
+                type: string
+    ConsequenceLoop:
+      type: object
+      required: [id, initiativeId, owner, cadence, status]
+      properties:
+        id:
+          type: string
+        initiativeId:
+          type: string
+        owner:
+          $ref: "#/components/schemas/AccountableOwner"
+        cadence:
+          type: string
+        status:
+          type: string
+          enum: [live, stale, unstaffed, closed]
+        lastReviewedAt:
+          type: string
+          format: date-time
+        nextReviewDue:
+          type: string
+          format: date
+        reopeningSignals:
+          type: array
+          items:
+            type: object
+            properties:
+              signalType:
+                type: string
+              threshold:
+                type: string
+        openSignalCount:
+          type: integer
+    ConsequenceSignalCreate:
+      type: object
+      required: [signalType, description]
+      properties:
+        signalType:
+          type: string
+          enum: [complaint_theme, outcome_disparity, media_coverage, regulator_query, employee_escalation, model_degradation]
+        description:
+          type: string
+        magnitude:
+          type: number
+          format: float
+        sourceSystemReference:
+          type: string
+          description: Reference into the originating case system, no personal data
+    ConsequenceSignal:
+      type: object
+      required: [id, loopId, signalType, status, receivedAt]
+      properties:
+        id:
+          type: string
+        loopId:
+          type: string
+        signalType:
+          type: string
+        description:
+          type: string
+        magnitude:
+          type: number
+          format: float
+        thresholdBreached:
+          type: boolean
+        status:
+          type: string
+          enum: [new, triaged, dismissed, escalated, gate_reopened]
+        caughtBeforeExternalSurfacing:
+          type: boolean
+        receivedAt:
+          type: string
+          format: date-time
+    ConcernTaxonomyTerm:
+      type: object
+      required: [id, term, definition, version]
+      properties:
+        id:
+          type: string
+        term:
+          type: string
+          example: unintended_inference_of_health_status
+        definition:
+          type: string
+        rail:
+          type: string
+          enum: [breach, dilemma]
+        breachDomain:
+          $ref: "#/components/schemas/BreachDomain"
+        version:
+          type: string
+        supersedesTermId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ThreatExposure:
+      type: object
+      required: [category, owner, exposureLevel]
+      properties:
+        category:
+          $ref: "#/components/schemas/ThreatCategory"
+        owner:
+          $ref: "#/components/schemas/AccountableOwner"
+        exposureLevel:
+          type: string
+          enum: [low, moderate, elevated, severe]
+        drivers:
+          type: array
+          items:
+            type: string
+        affectedInitiativeIds:
+          type: array
+          items:
+            type: string
+        remediationPosition:
+          type: string
+    ThreatExposureReport:
+      type: object
+      required: [period, exposures]
+      properties:
+        period:
+          type: string
+        exposures:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThreatExposure"
+        liveBreachAcceptances:
+          type: integer
+        concernsWithoutOwner:
+          type: integer
+        staleConsequenceLoops:
+          type: integer
+    VerdictCycleTimeReport:
+      type: object
+      required: [stages]
+      properties:
+        stages:
+          type: array
+          items:
+            type: object
+            properties:
+              stage:
+                $ref: "#/components/schemas/LifecycleStage"
+              medianDaysToVerdict:
+                type: number
+                format: float
+              p90DaysToVerdict:
+                type: number
+                format: float
+              commitmentDays:
+                type: integer
+              commitmentBreaches:
+                type: integer
+        precedentInheritanceRate:
+          type: number
+          format: float
+        doNotBuildDeterminations:
+          type: integer
+    DataEnvelopeAiInitiative:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/AiInitiative"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeGateSubmission:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/GateSubmission"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeGateVerdict:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/GateVerdict"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeBreachCheckResult:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/BreachCheckResult"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeBreachAcceptance:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/BreachAcceptance"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeBuildDetermination:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/BuildDetermination"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeDilemma:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Dilemma"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeDeliberationSession:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/DeliberationSession"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeForumPosition:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ForumPosition"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeDissentRecord:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/DissentRecord"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeInferenceRiskReview:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/InferenceRiskReview"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeMarginalisationReview:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/MarginalisationReview"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeWorkforceConsultation:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/WorkforceConsultation"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeConsequenceLoop:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ConsequenceLoop"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeConsequenceSignal:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ConsequenceSignal"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeConcernTaxonomyTerm:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ConcernTaxonomyTerm"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeThreatExposureReport:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ThreatExposureReport"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeVerdictCycleTimeReport:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/VerdictCycleTimeReport"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeAiInitiative:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/AiInitiative"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeGateSubmission:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/GateSubmission"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeBreachCheck:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/BreachCheck"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeBreachCheckResult:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/BreachCheckResult"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeBreachAcceptance:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/BreachAcceptance"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeDilemma:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Dilemma"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopePrecedent:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Precedent"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeConsequenceLoop:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ConsequenceLoop"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeConcernTaxonomyTerm:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ConcernTaxonomyTerm"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
